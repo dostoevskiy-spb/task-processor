@@ -2,7 +2,9 @@
 
 namespace dostoevskiy\processor\src\classes;
 
+use dostoevskiy\processor\src\models\Workerman;
 use Yii;
+use yii\db\Exception;
 
 class Worker extends \Workerman\Worker
 {
@@ -39,7 +41,7 @@ class Worker extends \Workerman\Worker
                 Yii::$app->$service->close();
                 Yii::$app->$service->open();
             }
-            /*$workermanModel = new Workerman();
+            $workermanModel = new Workerman();
             $workermanModel->pid = self::$_masterPid;
             $workermanModel->name = $worker->name;
             if (!$workermanModel->save()) {
@@ -48,7 +50,20 @@ class Worker extends \Workerman\Worker
                         throw new Exception('can not save pid to ' . $message);
                     }
                 }
-            }*/
+            }
         }
+    }
+
+    /**
+     * Workerman model
+     *
+     * @param string $name 名称
+     * @return array|null|Workerman
+     */
+    protected static function getWorkermanByName($name)
+    {
+        Yii::$app->db->close();
+        Yii::$app->db->open();
+        return Workerman::find()->findByName($name)->one();
     }
 }

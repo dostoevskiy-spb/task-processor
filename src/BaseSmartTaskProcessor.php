@@ -35,7 +35,7 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
     protected $defaultStorageType    = 'socket';
     protected $defaultStorageOptions = ['host' => '127.0.0.1', 'port' => '1488'];
     protected $defaultListenOptions  = [
-        'class'            => 'dostoevskiy\tools\src\Listner',
+        'class'            => 'dostoevskiy\processor\src\Listner',
         'host'             => '127.0.0.1',
         'port'             => '1488',
         'count'            => 4,
@@ -75,11 +75,11 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
 
     public function init()
     {
-        if (!in_array($this->type, $this->getAvailableTypes())) {
-            throw new InvalidConfigException('Only "live" or "deferred" types are available. Us it.');
-        }
         if (empty($this->type)) {
             $this->type = $this->defaultType;
+        }
+        if (!in_array($this->type, array_keys($this->getAvailableTypes()))) {
+            throw new InvalidConfigException('Only "live" or "deferred" types are available. Us it.');
         }
         if (empty($this->taskProcessorConfig)) {
             throw new InvalidConfigException('You must config task processor as simple Yii2 component.');
@@ -98,7 +98,7 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
                 $this->type           = $this->defaultStorageType;
                 $this->storageOptions = $this->defaultStorageOptions;
             }
-            if (!in_array($this->storageType, $this->getAvailableStorageTypes())) {
+            if (!in_array($this->storageType, array_keys($this->getAvailableStorageTypes()))) {
                 throw new InvalidConfigException('Only "nats", "mongo", "socket" or "rabbit" types are available. Us it.');
             }
             self::$storage = Yii::createObject($this->storageOptions);
