@@ -1,6 +1,6 @@
 <?php
 
-namespace dostoevskiy\processor;
+namespace dostoevskiy\processor\src;
 
 use dostoevskiy\tools\classes\Listner;
 use dostoevskiy\tools\interfaces\GateProcessorInterface;
