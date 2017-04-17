@@ -35,7 +35,7 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
     protected $defaultStorageType    = 'socket';
     protected $defaultStorageOptions = ['host' => '127.0.0.1', 'port' => '1488'];
     protected $defaultListenOptions  = [
-        'class'            => 'dostoevskiy\processor\src\Listner',
+        'class'            => 'dostoevskiy\processor\src\classes\Listner',
         'host'             => '127.0.0.1',
         'port'             => '1488',
         'count'            => 4,
@@ -56,10 +56,10 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
         self::$listner->onConnect = $isLive ? function ($connection, $data) use ($isLive) {
             /** @var $connection \Workerman\Connection\ConnectionInterface */
             $connection->send(self::$taskProcessor->process($data));
-        }
-            : function ($connection, $data) {
-                $connection->send(self::$storage->push($data));
-            };
+        } : function ($connection, $data) {
+            /** @var $connection \Workerman\Connection\ConnectionInterface */
+            $connection->send(self::$storage->push($data));
+        };
         self::$listner->run();
     }
 

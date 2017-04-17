@@ -19,13 +19,22 @@ class Listner extends Object
         if (empty(self::$worker)) {
             $dsn                 = $this->type . "://" . $this->host . ':' . $this->port;
             self::$worker        = new Worker($dsn);
-            self::$worker->servicesToReload = $this->servicesToReload;
+            self::$worker->setServicesToReload($this->servicesToReload);
             self::$worker->count = $this->count;
         }
     }
 
     public function run()
     {
+        if(is_callable($this->onMessage)) {
+            self::$worker->onMessage = $this->onMessage;
+        }
+        if(is_callable($this->onConnect)) {
+            self::$worker->onConnect = $this->onConnect;
+        }
+        if(is_callable($this->onClose)) {
+            self::$worker->onClose = $this->onClose;
+        }
         Worker::runAll();
     }
 
