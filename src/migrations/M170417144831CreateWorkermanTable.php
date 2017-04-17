@@ -1,10 +1,10 @@
 <?php
 
-use yii\db\Migration;
+use yii\db\Schema;
+use jamband\schemadump\Migration;
 
-class m170417_172808_create_workerman_table extends Migration
+class M170417144831CreateWorkermanTable extends Migration
 {
-    // Use safeUp/safeDown to run migration code within a transaction
     public function safeUp()
     {
         $sql = <<<SQL
@@ -21,6 +21,5 @@ SQL;
 
     public function safeDown()
     {
-        $this->dropTable('{{%workerman}}');
     }
 }
