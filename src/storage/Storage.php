@@ -1,5 +1,5 @@
 <?php
-namespace dostoevskiy\tools\storage;
+namespace dostoevskiy\processor\src\storage;
 
 use yii\base\Object;
 

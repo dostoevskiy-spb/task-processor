@@ -1,5 +1,5 @@
 <?php
-namespace dostoevskiy\tools\interfaces;
+namespace dostoevskiy\processor\src\interfaces;
 
 interface GateProcessorInterface
 {

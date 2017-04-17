@@ -1,6 +1,6 @@
 <?php
 
-namespace dostoevskiy\tools\classes;
+namespace dostoevskiy\processor\src\classes;
 
 use Yii;
 

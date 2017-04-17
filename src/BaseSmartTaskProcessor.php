@@ -2,9 +2,8 @@
 
 namespace dostoevskiy\processor\src;
 
-use dostoevskiy\tools\classes\Listner;
-use dostoevskiy\tools\interfaces\GateProcessorInterface;
-use Workerman\Connection\ConnectionInterface;
+use dostoevskiy\processor\src\classes\Listner;
+use dostoevskiy\processor\src\interfaces\GateProcessorInterface;
 use Yii;
 use yii\base\InvalidConfigException;
 use yii\base\Object;
@@ -55,7 +54,7 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
 
         $isLive                   = $this->isLive();
         self::$listner->onConnect = $isLive ? function ($connection, $data) use ($isLive) {
-            /** @var $connection ConnectionInterface */
+            /** @var $connection \Workerman\Connection\ConnectionInterface */
             $connection->send(self::$taskProcessor->process($data));
         }
             : function ($connection, $data) {
