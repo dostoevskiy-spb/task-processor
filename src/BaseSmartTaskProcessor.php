@@ -3,10 +3,12 @@
 namespace dostoevskiy\processor\src;
 
 use dostoevskiy\processor\src\classes\Listner;
+use dostoevskiy\processor\src\classes\Worker;
 use dostoevskiy\processor\src\interfaces\GateProcessorInterface;
 use Yii;
 use yii\base\InvalidConfigException;
 use yii\base\Object;
+use yii\helpers\ArrayHelper;
 
 /**
  *
@@ -52,13 +54,23 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
     {
         self::$listner = Yii::createObject($this->listenOptions);
 
-        $isLive                   = $this->isLive();
-        self::$listner->onConnect = $isLive ? function ($connection, $data) use ($isLive) {
+        $isLive                       = $this->isLive();
+        if(!$isLive) {
+            self::$listner->onWorkerStart = self::$storage->configurateContextForAdapter();
+        }
+        self::$listner->onMessage     = $isLive ? function ($connection, $data) {
             /** @var $connection \Workerman\Connection\ConnectionInterface */
+//            $connection->send("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nServer: workerman\r\nContent-Length: 5\r\n\r\nhello");
+//            $connection->close();
             $connection->send(self::$taskProcessor->process($data));
-        } : function ($connection, $data) {
-            /** @var $connection \Workerman\Connection\ConnectionInterface */
-            $connection->send(self::$storage->push($data));
+            $connection->close();
+        }
+            : function ($connection, $data) {
+                /** @var $connection \Workerman\Connection\ConnectionInterface */
+                $connection->send(self::$storage->push($data));
+            };
+        self::$listner->onConnect     = function ($connection) {
+            echo "New Connection\n";
         };
         self::$listner->run();
     }
@@ -101,7 +113,11 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
             if (!in_array($this->storageType, array_keys($this->getAvailableStorageTypes()))) {
                 throw new InvalidConfigException('Only "nats", "mongo", "socket" or "rabbit" types are available. Us it.');
             }
-            self::$storage = Yii::createObject($this->storageOptions);
+            self::$storage = Yii::createObject([
+                                                   'class'          => 'dostoevskiy\processor\src\storage\Storage',
+                                                   'storageOptions' => $this->storageOptions,
+                                                   'type' => $this->storageType
+                                               ]);
         }
 
 

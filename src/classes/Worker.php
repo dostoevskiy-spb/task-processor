@@ -10,11 +10,11 @@ class Worker extends \Workerman\Worker
 {
     public static $servicesToReload = [];
 
+    public $name = 'StatsWorker';
     /**
      * Log.
      *
      * @param string $msg
-     *
      * @return void
      */
     public static function log($msg)
@@ -24,16 +24,10 @@ class Worker extends \Workerman\Worker
             self::safeEcho($msg);
         }
 
-        Yii::info('pid:' . posix_getpid() . ' ' . $msg, 'workerman');
-        file_put_contents((string)self::$logFile, date('Y-m-d H:i:s') . ' ' . 'pid:' . posix_getpid() . ' ' . $msg, FILE_APPEND | LOCK_EX);
+        Yii::info('pid:'. posix_getpid() . ' ' . $msg, 'workerman');
+        file_put_contents((string)self::$logFile, date('Y-m-d H:i:s') . ' ' . 'pid:'. posix_getpid() . ' ' . $msg, FILE_APPEND | LOCK_EX);
     }
 
-    public function setServicesToReload($services)
-    {
-        self::$servicesToReload = $services;
-
-        return $this;
-    }
 
     /**
      * Save pid.
@@ -45,12 +39,12 @@ class Worker extends \Workerman\Worker
         self::$_masterPid = posix_getpid();
 
         foreach (self::$_workers as $worker) {
-            foreach (self::$servicesToReload as $service) {
+            foreach(self::$servicesToReload as $service) {
                 Yii::$app->$service->close();
                 Yii::$app->$service->open();
             }
-            $workermanModel       = new Workerman();
-            $workermanModel->pid  = self::$_masterPid;
+            $workermanModel = new Workerman();
+            $workermanModel->pid = self::$_masterPid;
             $workermanModel->name = $worker->name;
             if (!$workermanModel->save()) {
                 foreach ($workermanModel->errors as $field) {
@@ -62,18 +56,23 @@ class Worker extends \Workerman\Worker
         }
     }
 
+    public function setServicesToReload($services)
+    {
+        self::$servicesToReload = $services;
+
+        return $this;
+    }
+
     /**
      * Workerman model
      *
      * @param string $name 名称
-     *
      * @return array|null|Workerman
      */
     protected static function getWorkermanByName($name)
     {
         Yii::$app->db->close();
         Yii::$app->db->open();
-
         return Workerman::find()->findByName($name)->one();
     }
 }

@@ -5,4 +5,5 @@ interface StorageInterface
 {
     public function push($data);
     public function pull();
+    public function configurateContextForAdapter();
 }

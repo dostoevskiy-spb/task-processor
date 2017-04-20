@@ -7,9 +7,10 @@ use yii\base\Object;
 
 class Listner extends Object
 {
+    /** @var  Worker */
     protected static $worker;
     public           $type, $host, $port, $count, $servicesToReload;
-    public           $onConnect, $onMessage, $onClose;
+    public           $onConnect, $onMessage, $onClose, $onWorkerStart;
 
     public function init()
     {
@@ -34,6 +35,9 @@ class Listner extends Object
         }
         if(is_callable($this->onClose)) {
             self::$worker->onClose = $this->onClose;
+        }
+        if(is_callable($this->onWorkerStart)) {
+            self::$worker->onWorkerStart = $this->onWorkerStart;
         }
         Worker::runAll();
     }
