@@ -39,10 +39,6 @@ class Worker extends \Workerman\Worker
         self::$_masterPid = posix_getpid();
 
         foreach (self::$_workers as $worker) {
-            foreach(self::$servicesToReload as $service) {
-                Yii::$app->$service->close();
-                Yii::$app->$service->open();
-            }
             $workermanModel = new Workerman();
             $workermanModel->pid = self::$_masterPid;
             $workermanModel->name = $worker->name;

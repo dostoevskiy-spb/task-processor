@@ -3,8 +3,10 @@
 namespace dostoevskiy\processor\src;
 
 use dostoevskiy\processor\src\classes\Listner;
+use dostoevskiy\processor\src\classes\ProcessManager;
 use dostoevskiy\processor\src\classes\Worker;
 use dostoevskiy\processor\src\interfaces\GateProcessorInterface;
+use dostoevskiy\processor\src\interfaces\StorageInterface;
 use Yii;
 use yii\base\InvalidConfigException;
 use yii\base\Object;
@@ -48,41 +50,62 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
     /** @var  Listner */
     protected static $listner;
     protected static $taskProcessor;
+    /** @var  StorageInterface */
     protected static $storage;
 
     public function listen()
     {
         self::$listner = Yii::createObject($this->listenOptions);
 
-        $isLive                       = $this->isLive();
-        if(!$isLive) {
-            self::$listner->onWorkerStart = self::$storage->configurateContextForAdapter();
+        $isLive = $this->isLive();
+        if (!$isLive) {
+            self::$listner->onWorkerStart = function () {
+                self::$storage->configurateContextForAdapter();
+                foreach (Worker::$servicesToReload as $service) {
+                    Yii::$app->$service->close();
+                    Yii::$app->$service->open();
+                }
+            };
         }
-        self::$listner->onMessage     = $isLive ? function ($connection, $data) {
+        self::$listner->onMessage = $isLive ? function ($connection, $data) {
             /** @var $connection \Workerman\Connection\ConnectionInterface */
-//            $connection->send("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nServer: workerman\r\nContent-Length: 5\r\n\r\nhello");
-//            $connection->close();
-            $connection->send(self::$taskProcessor->process($data));
+            self::$taskProcessor->process($data);
+            $connection->send("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nServer: workerman\r\nContent-Length: 5\r\n\r\nhello");
             $connection->close();
+
+            return;
         }
             : function ($connection, $data) {
                 /** @var $connection \Workerman\Connection\ConnectionInterface */
-                $connection->send(self::$storage->push($data));
+                self::$storage->push($data);
+                $resp   = json_encode(['status' => 'success']);
+                $length = strlen($resp);
+                $connection->send("HTTP/1.1 200 OK\r\nServer: workerman\r\nContent-Length: $length\r\nContent-Type: application/json\r\n\r\n" . $resp);
             };
-        self::$listner->onConnect     = function ($connection) {
-            echo "New Connection\n";
+        self::$listner->onConnect = function ($connection) {
+//            echo "New Connection\n";
         };
         self::$listner->run();
     }
+
 
     public function process()
     {
         if (!self::$taskProcessor) {
             self::$taskProcessor = Yii::createObject($this->taskProcessorConfig);
         }
-        $data = self::$storage->pull();
+        while(true) {
+//            return 1;
+//            $data = self::$storage->pull();
+//
+//            self::$taskProcessor->process($data);
+            usleep(100000);
+        }
+    }
 
-        return self::$taskProcessor->process($data);
+    public function runProcessManager() {
+        $processManager = new ProcessManager();
+        $processManager->manage();
     }
 
     public function init()
@@ -116,7 +139,7 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
             self::$storage = Yii::createObject([
                                                    'class'          => 'dostoevskiy\processor\src\storage\Storage',
                                                    'storageOptions' => $this->storageOptions,
-                                                   'type' => $this->storageType
+                                                   'type'           => $this->storageType
                                                ]);
         }
 
