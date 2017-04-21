@@ -80,7 +80,7 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
                 self::$storage->push($data);
                 $resp   = json_encode(['status' => 'success']);
                 $length = strlen($resp);
-                $connection->send("HTTP/1.1 200 OK\r\nServer: workerman\r\nContent-Length: $length\r\nContent-Type: application/json\r\n\r\n" . $resp);
+                $connection->send("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: $length\r\nContent-Type: application/json\r\n\r\n" . $resp);
             };
         self::$listner->onConnect = function ($connection) {
 //            echo "New Connection\n";
@@ -95,10 +95,9 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
             self::$taskProcessor = Yii::createObject($this->taskProcessorConfig);
         }
         while(true) {
-//            return 1;
-//            $data = self::$storage->pull();
-//
-//            self::$taskProcessor->process($data);
+            $data = self::$storage->pull();
+
+            self::$taskProcessor->process($data);
             usleep(100000);
         }
     }

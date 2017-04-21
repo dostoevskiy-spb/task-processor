@@ -1,9 +1,9 @@
 <?php
 namespace dostoevskiy\processor\src\storage\adapters;
 
-use AMQPChannel;
 use dostoevskiy\processor\src\interfaces\StorageAdapterInterface;
 use dostoevskiy\processor\src\interfaces\StorageInterface;
+use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
 use yii\base\Object;
@@ -38,9 +38,20 @@ class Amqp extends Object implements StorageAdapterInterface, StorageInterface
         return self::$connection->isConnected();
     }
 
-    public function pull()
+    public function pull($callback)
     {
-        self::$channel->basic_publish($message, '', 'processor');
+        self::$channel->basic_consume('processor', '', false, true, false, false, function($msg) use ($callback) {
+            /** @var  AMQPMessage $msg */
+            $class = $callback[0];
+            $method = $callback[1];
+            $result = $class->$method($msg->getBody());
+            if($result) {
+                $msg->delivery_info['channel']->basic_ack($msg->delivery_info['delivery_tag']);
+            }
+        });
+        while (count(self::$channel->callbacks)) {
+            self::$channel->wait();
+        }
     }
 
     public function configurateContextForAdapter()

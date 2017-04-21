@@ -31,9 +31,9 @@ class Storage extends Object implements StorageInterface
         return $this->_adapter->push($data) ? 'success' : 'fail';
     }
 
-    public function pull()
+    public function pull($callback)
     {
-        return $this->_adapter->pull();
+        return $this->_adapter->pull($callback);
     }
 
     public function configurateContextForAdapter()

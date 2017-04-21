@@ -4,6 +4,6 @@ namespace dostoevskiy\processor\src\interfaces;
 interface StorageInterface
 {
     public function push($data);
-    public function pull();
+    public function pull($callback);
     public function configurateContextForAdapter();
 }
