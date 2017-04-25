@@ -77,10 +77,12 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
         }
             : function ($connection, $data) {
                 /** @var $connection \Workerman\Connection\ConnectionInterface */
-                self::$storage->push($data);
+                $body = explode("\r\n", $data);
+                $body = array_pop($body);
                 $resp   = json_encode(['status' => 'success']);
                 $length = strlen($resp);
-                $connection->send("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: $length\r\nContent-Type: application/json\r\n\r\n" . $resp);
+                $connection->close("HTTP/1.1 200 OK\r\nServer: workerman\r\nContent-Length: $length\r\nContent-Type: application/json\r\n\r\n" . $resp);
+                self::$storage->push($body);
             };
         self::$listner->onConnect = function ($connection) {
 //            echo "New Connection\n";
@@ -94,15 +96,12 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
         if (!self::$taskProcessor) {
             self::$taskProcessor = Yii::createObject($this->taskProcessorConfig);
         }
-        while(true) {
-            $data = self::$storage->pull();
-
-            self::$taskProcessor->process($data);
-            usleep(100000);
-        }
+        self::$storage->configurateContextForAdapter();
+        self::$storage->loop([self::$taskProcessor, 'process']);
     }
 
-    public function runProcessManager() {
+    public function runProcessManager()
+    {
         $processManager = new ProcessManager();
         $processManager->manage();
     }

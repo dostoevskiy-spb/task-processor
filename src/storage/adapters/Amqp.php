@@ -16,10 +16,10 @@ class Amqp extends Object implements StorageAdapterInterface, StorageInterface
 
     public function push($data)
     {
-        $message = new AMQPMessage($data);
-        $result  = self::$channel->basic_publish($message, '', 'processor');
+        $message = new AMQPMessage($data, ['delivery_mode' => 2]);
+        self::$channel->basic_publish($message, '', 'processor');
 
-        return $result;
+        return true;
     }
 
     public function configurateContext()
@@ -33,14 +33,14 @@ class Amqp extends Object implements StorageAdapterInterface, StorageInterface
         echo "configurate" . PHP_EOL;
         self::$channel = self::$connection->channel();
         self::$channel->queue_declare('processor', false, true, false, false);
-        self::$channel->basic_qos(0, 1, true);
+        self::$channel->basic_qos(0, 100, false);
 
         return self::$connection->isConnected();
     }
 
     public function pull($callback)
     {
-        self::$channel->basic_consume('processor', '', false, true, false, false, function($msg) use ($callback) {
+        self::$channel->basic_consume('processor', '', false, false, false, false, function($msg) use ($callback) {
             /** @var  AMQPMessage $msg */
             $class = $callback[0];
             $method = $callback[1];
@@ -49,13 +49,12 @@ class Amqp extends Object implements StorageAdapterInterface, StorageInterface
                 $msg->delivery_info['channel']->basic_ack($msg->delivery_info['delivery_tag']);
             }
         });
+
+    }
+
+    public function loop($callback) {
         while (count(self::$channel->callbacks)) {
             self::$channel->wait();
         }
-    }
-
-    public function configurateContextForAdapter()
-    {
-        // TODO: Implement configurateContextForAdapter() method.
     }
 }

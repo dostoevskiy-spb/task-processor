@@ -5,5 +5,6 @@ interface StorageInterface
 {
     public function push($data);
     public function pull($callback);
-    public function configurateContextForAdapter();
+    public function configurateContext();
+    public function loop($callback);
 }

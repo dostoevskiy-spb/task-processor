@@ -36,8 +36,12 @@ class Storage extends Object implements StorageInterface
         return $this->_adapter->pull($callback);
     }
 
-    public function configurateContextForAdapter()
+    public function configurateContext()
     {
         return $this->_adapter->configurateContext();
+    }
+
+    public function loop($callback) {
+        return $this->_adapter->loop($callback);
     }
 }
