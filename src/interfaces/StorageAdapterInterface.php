@@ -3,5 +3,5 @@ namespace dostoevskiy\processor\src\interfaces;
 
 interface StorageAdapterInterface
 {
-    public function configurateContext();
+    public function configureContext($taskName, $config);
 }

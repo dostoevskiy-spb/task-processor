@@ -2,11 +2,14 @@
 
 namespace dostoevskiy\processor\src;
 
+use dostoevskiy\processor\src\classes\AbstractTask;
 use dostoevskiy\processor\src\classes\Listner;
 use dostoevskiy\processor\src\classes\ProcessManager;
 use dostoevskiy\processor\src\classes\Worker;
 use dostoevskiy\processor\src\interfaces\GateProcessorInterface;
+use dostoevskiy\processor\src\interfaces\ListnerInterface;
 use dostoevskiy\processor\src\interfaces\StorageInterface;
+use dostoevskiy\processor\src\interfaces\TaskProcessorInterface;
 use Yii;
 use yii\base\InvalidConfigException;
 use yii\base\Object;
@@ -19,154 +22,157 @@ use yii\helpers\ArrayHelper;
  */
 class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
 {
-    public $type, $storageType, $storageOptions, $taskProcessorConfig, $listenOptions;
+    public $tasksConfig    = [];
+    public $storagesConfig = [];
+    public $listnerConfig;
 
-    protected $mode;
-
-    const TYPE_LIVE     = 'live';
-    const TYPE_DEFERRED = 'deferred';
-
-    const STORAGE_TYPE_NATS     = 'nats';
-    const STORAGE_TYPE_MONGO    = 'mongo';
-    const STORAGE_TYPE_SOCKET   = 'socket';
-    const STORAGE_TYPE_RABBITMQ = 'rabbit';
-
-    const LISTEN_TYPE_HTTP      = 'http';
-    const LISTEN_TYPE_WEBSOCKET = 'websocket';
-    const LISTEN_TYPE_TCP       = 'tcp';
-
-    protected $defaultType           = 'live';
-    protected $defaultStorageType    = 'socket';
-    protected $defaultStorageOptions = ['host' => '127.0.0.1', 'port' => '1488'];
-    protected $defaultListenOptions  = [
-        'class'            => 'dostoevskiy\processor\src\classes\Listner',
-        'host'             => '127.0.0.1',
-        'port'             => '1488',
-        'count'            => 4,
-        'type'             => 'tcp',
-        'servicesToReload' => ['db']
-    ];
-
-    /** @var  Listner */
+    /** @var  ListnerInterface|Listner */
     protected static $listner;
-    protected static $taskProcessor;
-    /** @var  StorageInterface */
-    protected static $storage;
+    /** @var  TaskProcessorInterface[] */
+    protected static $tasks = [];
+    /** @var  StorageInterface|[] */
+    protected static $storages = [];
+
+
+    protected $defaultStorageClass = 'dostoevskiy\processor\src\storage\Storage';
+    protected $defaultListnerClass = 'dostoevskiy\processor\src\classes\Listner';
 
     public function listen()
     {
-        self::$listner = Yii::createObject($this->listenOptions);
-
-        $isLive = $this->isLive();
-        if (!$isLive) {
-            self::$listner->onWorkerStart = function () {
-                self::$storage->configurateContextForAdapter();
-                foreach (Worker::$servicesToReload as $service) {
-                    Yii::$app->$service->close();
-                    Yii::$app->$service->open();
+        self::$listner->onWorkerStart = function () {
+            /**
+             * @var                  $name
+             * @var StorageInterface $storage
+             */
+            foreach (self::$storages as $name => $storage) {
+                if (!$storage->configureConnection()) {
+                    throw new \Exception("Cant connect to $name");
                 }
-            };
-        }
-        self::$listner->onMessage = $isLive ? function ($connection, $data) {
-            /** @var $connection \Workerman\Connection\ConnectionInterface */
-            self::$taskProcessor->process($data);
-            $connection->send("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nServer: workerman\r\nContent-Length: 5\r\n\r\nhello");
-            $connection->close();
+                /** @var AbstractTask $task */
+                foreach (self::$tasks as $taskName => $task) {
+                    if ($task->storage == $name) {
+                        if (!$storage->configureContext($taskName, $task->storageOptions)) {
+                            throw new \Exception("Cant configure context of $taskName");
+                        }
+                    }
+                }
+            }
+            foreach (Worker::$servicesToReload as $service) {
+                Yii::$app->$service->close();
+                Yii::$app->$service->open();
+            }
+        };
 
-            return;
-        }
-            : function ($connection, $data) {
-                /** @var $connection \Workerman\Connection\ConnectionInterface */
-                $body = explode("\r\n", $data);
-                $body = array_pop($body);
-                $resp   = json_encode(['status' => 'success']);
-                $length = strlen($resp);
-                $connection->close("HTTP/1.1 200 OK\r\nServer: workerman\r\nContent-Length: $length\r\nContent-Type: application/json\r\n\r\n" . $resp);
-                self::$storage->push($body);
-            };
+        self::$listner->onMessage = function ($connection, $data) {
+            /** @var $connection \Workerman\Connection\ConnectionInterface */
+            $body     = explode("\r\n", $data);
+            $body     = json_decode(array_pop($body), true, 1024);
+            $taskName = ArrayHelper::getValue($body, 'task', false);
+            $taskData = ArrayHelper::getValue($body, 'data', false);
+            if (!$taskName) {
+                $connection->send(json_encode(['status' => 'error', 'error' => 'Task directive is missing']));
+                $connection->close();
+
+                return;
+            }
+            if (!$taskData) {
+                $connection->send(json_encode(['status' => 'error', 'error' => 'Task data is missing']));
+                $connection->close();
+
+                return;
+            }
+            /** @var AbstractTask $taskInstance */
+            $taskInstance = ArrayHelper::getValue(self::$tasks, $taskName);
+            if (!$taskInstance) {
+                $connection->send(json_encode(['status' => 'error', 'error' => "Unknown task $taskName"]));
+                $connection->close();
+
+                return;
+            }
+            $resp   = json_encode(['status' => 'success']);
+            $length = strlen($resp);
+            if ($taskInstance->isLive()) {
+                if ($taskInstance->isTransactional()) {
+                    $taskInstance->process($taskData);
+                    $connection->send("HTTP/1.1 200 OK\r\nServer: workerman\r\nContent-Length: $length\r\nContent-Type: application/json\r\n\r\n" . $resp);
+                    $connection->close();
+
+                    return;
+                } else {
+                    $connection->send("HTTP/1.1 200 OK\r\nServer: workerman\r\nContent-Length: $length\r\nContent-Type: application/json\r\n\r\n" . $resp);
+                    $connection->close();
+                    $taskInstance->process($data);
+
+                    return;
+                }
+            } else {
+                $storageInstance = ArrayHelper::getValue(self::$storages, $taskInstance->storage);
+                if ($taskInstance->isTransactional()) {
+                    $storageInstance->push($taskName, $taskData);
+                    $connection->send("HTTP/1.1 200 OK\r\nServer: workerman\r\nContent-Length: $length\r\nConnection: keep-alive\r\nContent-Type: application/json\r\n\r\n" . $resp);
+                    $connection->close();
+
+
+                    return;
+                } else {
+                    $connection->send("HTTP/1.1 200 OK\r\nServer: workerman\r\nContent-Length: $length\r\nConnection: keep-alive\r\nContent-Type: application/json\r\n\r\n" . $resp);
+                    $connection->close();
+                    $storageInstance->push($taskName, $taskData);
+
+                    return;
+                }
+            }
+        };
         self::$listner->onConnect = function ($connection) {
 //            echo "New Connection\n";
         };
-        self::$listner->run();
+        self::$listner->listen();
     }
 
 
-    public function process()
+    public function run($taskName)
     {
-        if (!self::$taskProcessor) {
-            self::$taskProcessor = Yii::createObject($this->taskProcessorConfig);
+        if (!in_array($taskName, self::$tasks)) {
+            throw new InvalidConfigException("invalid task $taskName");
         }
-        self::$storage->configurateContextForAdapter();
+        self::$storage->configureContext();
         self::$storage->loop([self::$taskProcessor, 'process']);
     }
 
-    public function runProcessManager()
+    public function processManager()
     {
-        $processManager = new ProcessManager();
+        $processManager = new ProcessManager(['processor' => $this]);
         $processManager->manage();
     }
 
     public function init()
     {
-        if (empty($this->type)) {
-            $this->type = $this->defaultType;
-        }
-        if (!in_array($this->type, array_keys($this->getAvailableTypes()))) {
-            throw new InvalidConfigException('Only "live" or "deferred" types are available. Us it.');
-        }
-        if (empty($this->taskProcessorConfig)) {
-            throw new InvalidConfigException('You must config task processor as simple Yii2 component.');
-        }
-        if (empty($this->listenOptions)) {
-            $this->listenOptions = $this->defaultListenOptions;
-        }
-
-        if ($this->isLive()) {
-            self::$taskProcessor = Yii::createObject($this->taskProcessorConfig);
-        } else {
-            if (!empty($this->storageType) && empty($this->storageOptions)) {
-                throw new InvalidConfigException('You must config storage options as connection credentials, transport options etc.');
+        /* Create storages instances */
+        foreach ($this->storagesConfig as $name => $storage) {
+            $class    = ArrayHelper::getValue($storage, 'class', $this->defaultStorageClass);
+            $settings = ArrayHelper::merge(['class' => $class], $storage);
+            $storage  = Yii::createObject($settings);
+            if (!$storage instanceof StorageInterface) {
+                throw new InvalidConfigException('Storage must implements of StorageInterface');
             }
-            if (empty($this->storageType)) {
-                $this->type           = $this->defaultStorageType;
-                $this->storageOptions = $this->defaultStorageOptions;
-            }
-            if (!in_array($this->storageType, array_keys($this->getAvailableStorageTypes()))) {
-                throw new InvalidConfigException('Only "nats", "mongo", "socket" or "rabbit" types are available. Us it.');
-            }
-            self::$storage = Yii::createObject([
-                                                   'class'          => 'dostoevskiy\processor\src\storage\Storage',
-                                                   'storageOptions' => $this->storageOptions,
-                                                   'type'           => $this->storageType
-                                               ]);
+            self::$storages[$name] = $storage;
         }
 
+        /* Create tasks instances */
+        foreach ($this->tasksConfig as $name => $task) {
+            $task = Yii::createObject($task);
+            if (!$task instanceof AbstractTask) {
+                throw new InvalidConfigException('Task must be instance of AbstractTask');
+            }
+            self::$tasks[$name] = $task;
 
-    }
+        }
 
-    /**
-     * @return array
-     */
-    protected function getAvailableTypes()
-    {
-        return [
-            self::TYPE_DEFERRED => 'Отложенное выполнение',
-            self::TYPE_LIVE     => 'В реальном времени'
-        ];
-    }
-
-    protected function getAvailableStorageTypes()
-    {
-        return [
-            self::STORAGE_TYPE_MONGO    => 'MongoDB',
-            self::STORAGE_TYPE_NATS     => 'NATS',
-            self::STORAGE_TYPE_SOCKET   => 'Native socket',
-            self::STORAGE_TYPE_RABBITMQ => 'RabbitMQ',
-        ];
-    }
-
-    public function isLive()
-    {
-        return $this->type == self::TYPE_LIVE;
+        /* Create listner instace */
+        $config        = ArrayHelper::merge(['class' => $this->defaultListnerClass], $this->listnerConfig);
+        self::$listner = Yii::createObject($config);
+        if (!self::$listner instanceof ListnerInterface) {
+            throw new InvalidConfigException('Listner must implements ListnerInterface');
+        }
     }
 }

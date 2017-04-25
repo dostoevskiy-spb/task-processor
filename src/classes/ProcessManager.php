@@ -8,18 +8,36 @@
 
 namespace dostoevskiy\processor\src\classes;
 
+use dostoevskiy\processor\src\BaseSmartTaskProcessor;
 use dostoevskiy\processor\src\models\ProcessManager as ProcessManagerModel;
 use yii\base\Object;
 
+/**
+ *
+ * @property int   $memoryUsage
+ * @property array $pids
+ */
 class ProcessManager extends Object
 {
-    public function signalHandler($signo, $pid = null, $status = null) {
+    /** @var  BaseSmartTaskProcessor */
+    public $processor;
+
+    public function init()
+    {
+        pcntl_signal(SIGTERM, [$this, 'signalHandler']);
+        pcntl_signal(SIGINT, [$this, 'signalHandler']);
+        pcntl_signal(SIGHUP, [$this, 'signalHandler']);
+        system('clear');
+    }
+
+    public function signalHandler($signo, $pid = null, $status = null)
+    {
         switch ($signo) {
             case SIGINT:
             case SIGTERM:
                 //shutdown
                 $pids = $this->getPids();
-                foreach($pids as $pid) {
+                foreach ($pids as $pid) {
                     posix_kill($pid, SIGKILL);
                 }
                 break;
@@ -44,76 +62,52 @@ class ProcessManager extends Object
         die();
     }
 
+    /**
+     * Impliments helper for notify
+     *
+     * @param \cli\Notify $notify
+     *
+     * @return \cli\Notify
+     */
+    protected function notify(\cli\Notify $notify)
+    {
+        return $notify;
+    }
+
     public function manage()
     {
-        pcntl_signal(SIGTERM, [$this, 'signalHandler']);
-//        pcntl_signal(SIGKILL, [$this, 'signalHandler']);
-//        pcntl_signal(SIGSTOP, [$this, 'signalHandler']);
-        pcntl_signal(SIGINT, [$this, 'signalHandler']);
-        pcntl_signal(SIGHUP, [$this, 'signalHandler']);
-        /**
-         * Global Logic process manager (memory/process logic manager)
-         */
-        system('clear');
-
-        /**
-         * Impliments helper for notify
-         *
-         * @param \cli\Notify $notify
-         *
-         * @return \cli\Notify
-         */
-        function test_notify(\cli\Notify $notify)
-        {
-            return $notify;
-        }
-
-        /**
-         * Cheack available RAM
-         */
-        $fh  = fopen('/proc/meminfo', 'r');
-        $mem = 0;
-        while ($line = fgets($fh)) {
-            $pieces = [];
-            if (preg_match('/^MemTotal:\s+(\d+)\skB$/', $line, $pieces)) {
-                $mem = $pieces[1];
-                break;
-            }
-        }
-        fclose($fh);
-
-        /**
-         * Process manager
-         */
-        $mem = ($mem / 1024) / 2; // mem to MB. We get (for now) just a half of free RAM.
+        $mem = $this->getMemoryUsage();
+//        $mem = ($mem / 1024) / 2; // mem to MB. We get (for now) just a half of free RAM.
 //$workers = round($mem / 200); // Calculate number of workers
-        $workers = 5;
+        foreach ($this->processor->tasksConfig as $name => $config) {
+            $workers = $config['threads'];
+            $nt = $this->notify(new \cli\progress\Bar('Loading: ', $workers)); // Create 'ticker' instance
 
-        $nt = test_notify(new \cli\progress\Bar('Loading: ', $workers)); // Create 'ticker' instance
+            for ($i = 1; $i <= $workers; $i++) {
+                $nt->tick();
+                exec('php ' . ROOT_DIR . "/yii dev/task-processor-run $name > /dev/null & echo $!");
+                usleep(100000);
+            }
 
-        for ($i = 1; $i <= $workers; $i++) {
-            $nt->tick();
-            exec('php ' . ROOT_DIR . '/yii dev/task-processor-run > /dev/null & echo $!');
-            usleep(100000);
+            $headers = ['PID', 'CPU', 'Mem. (Resident)', 'Mem. (Virtual)'];
         }
 
-        $headers = ['PID', 'CPU', 'Mem. (Resident)', 'Mem. (Virtual)'];
         while (true) {
             $data          = [];
             $cpuTotal      = [];
             $residentTotal = [];
             $virtTotal     = [];
-            $pids = $this->getPids();
+            $pids          = $this->getPids();
             foreach ($pids as $pid) {
                 $rawOutput = exec("ps -p $pid -o %cpu,rss,vsz");
                 $procInfo  = trim($rawOutput);
                 $procInfo  = explode(' ', $procInfo);
                 if ($procInfo[1] != '') {
-                    $model = new ProcessManagerModel();
-                    $model->pid = $pid;
-                    $model->cpu = $procInfo[0];
+                    $model           = new ProcessManagerModel();
+                    $model->pid      = $pid;
+                    $model->cpu      = $procInfo[0];
                     $model->resident = $procInfo[1];
-                    $model->virtual = $procInfo[2];
+                    $model->virtual  = $procInfo[2];
                     $data[]          = [$pid, $procInfo[0], $procInfo[1], $procInfo[2]];
                     $cpuTotal[]      = $procInfo[0];
                     $residentTotal[] = $procInfo[1];
@@ -139,23 +133,43 @@ class ProcessManager extends Object
     }
 
     /**
-     * @param $pids
-     *
      * @return array
      */
     protected function getPids()
     {
         $pidsRaw    = shell_exec("ps axf | grep 'php ' | awk '{print $1\":\"$6$7}'");
         $pidsRawArr = explode("\n", $pidsRaw);
-        $pids = [];
+        $pids       = [];
         foreach ($pidsRawArr as $pid) {
-            if (stristr($pid, '/home/pavel/dev/www')) {
+            if (stristr($pid, '/yii')) {
                 $pdtmp      = explode(':', $pid);
                 $pids[$pid] = $pdtmp[0];
             }
         }
 
         return $pids;
+    }
+
+    /**
+     * @return int
+     */
+    protected function getMemoryUsage():int
+    {
+        /**
+         * Cheack available RAM
+         */
+        $fh  = fopen('/proc/meminfo', 'r');
+        $mem = 0;
+        while ($line = fgets($fh)) {
+            $pieces = [];
+            if (preg_match('/^MemTotal:\s+(\d+)\skB$/', $line, $pieces)) {
+                $mem = $pieces[1];
+                break;
+            }
+        }
+        fclose($fh);
+
+        return $mem;
     }
 
 }

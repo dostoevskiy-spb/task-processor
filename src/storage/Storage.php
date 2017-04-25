@@ -10,25 +10,40 @@ use yii\helpers\ArrayHelper;
 
 class Storage extends Object implements StorageInterface
 {
-    public $storageOptions, $type;
+    public $credentials, $storageOptions, $type;
     /** @var  StorageAdapterInterface|StorageInterface */
     protected $_adapter;
+    protected $defaultType        = 'rabbit';
+    protected $defaultCredentials = [
+        'host'     => 'localhost',
+        'port'     => 5672,
+        'user'     => 'guest',
+        'password' => 'guest',
+        'vhost'    => '/',
+    ];
 
     public function init()
     {
+        if (empty($this->type)) {
+            $this->type           = $this->defaultType;
+        }
+        if (empty($this->credentials)) {
+            throw new InvalidConfigException('You must config storage options as connection credentials, transport options etc.');
+        }
         switch ($this->type) {
-            case BaseSmartTaskProcessor::STORAGE_TYPE_RABBITMQ:
+            case self::STORAGE_TYPE_RABBITMQ:
                 $class = 'dostoevskiy\processor\src\storage\adapters\Amqp';
                 break;
             default:
-                throw new InvalidConfigException('empty or not existed storage adapter');
+                throw new InvalidConfigException('Empty or not existed storage adapter. Only "nats", "mongo", "socket" or "rabbit" types are available. Us it.');
         }
-        $this->_adapter = \Yii::createObject(ArrayHelper::merge(['class' => $class], $this->storageOptions));
+
+        $this->_adapter = \Yii::createObject(ArrayHelper::merge(['class' => $class], $this->credentials));
     }
 
-    public function push($data)
+    public function push($taskName, $data)
     {
-        return $this->_adapter->push($data) ? 'success' : 'fail';
+        return $this->_adapter->push($taskName, $data) ? 'success' : 'fail';
     }
 
     public function pull($callback)
@@ -36,12 +51,29 @@ class Storage extends Object implements StorageInterface
         return $this->_adapter->pull($callback);
     }
 
-    public function configurateContext()
+    public function configureContext($task, $config)
     {
-        return $this->_adapter->configurateContext();
+        return $this->_adapter->configureContext($task, $config);
     }
 
-    public function loop($callback) {
+    public function configureConnection()
+    {
+        return $this->_adapter->configureConnection();
+    }
+
+
+    public function loop($callback)
+    {
         return $this->_adapter->loop($callback);
+    }
+
+    protected function getAvailableStorageTypes()
+    {
+        return [
+            self::STORAGE_TYPE_MONGO    => 'MongoDB',
+            self::STORAGE_TYPE_NATS     => 'NATS',
+            self::STORAGE_TYPE_SOCKET   => 'Native socket',
+            self::STORAGE_TYPE_RABBITMQ => 'RabbitMQ',
+        ];
     }
 }
