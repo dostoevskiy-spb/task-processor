@@ -29,3 +29,31 @@ Once the extension is installed, simply use it in your code by  :
 
 ```php
 <?= \dostoevskiy\tools\AutoloadExample::widget(); ?>```
+```
+
+example config:
+```php
+'processor'  => [
+            'class'               => 'dostoevskiy\processor\SmartTaskProcessor',
+            'type'                => 'deferred',
+            'storageType'         => 'rabbit',
+            'storageOptions'      => [
+                'host'     => 'localhost',
+                'port'     => 5672,
+                'user'     => 'guest',
+                'password' => 'guest',
+                'vhost'    => '/',
+            ],
+            'taskProcessorConfig' => [
+                'class' => 'console\components\statistics\StatsProcessor'
+            ],
+            'listenOptions'       => [
+                'class'            => 'dostoevskiy\processor\src\classes\Listner',
+                'host'             => '127.0.0.1',
+                'port'             => '1488',
+                'count'            => 2,
+                'type'             => 'tcp',
+                'servicesToReload' => ['db']
+            ]
+        ],
+```
