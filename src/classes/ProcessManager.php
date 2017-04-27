@@ -8,6 +8,7 @@
 
 namespace dostoevskiy\processor\src\classes;
 
+use dostoevskiy\processor\SmartTaskProcessor;
 use dostoevskiy\processor\src\BaseSmartTaskProcessor;
 use dostoevskiy\processor\src\models\ProcessManager as ProcessManagerModel;
 use yii\base\Object;
@@ -79,15 +80,15 @@ class ProcessManager extends Object
         $mem = $this->getMemoryUsage();
 //        $mem = ($mem / 1024) / 2; // mem to MB. We get (for now) just a half of free RAM.
 //$workers = round($mem / 200); // Calculate number of workers
-        foreach ($this->processor->tasksConfig as $name => $config) {
-            $workers = $config['threads'];
-            $nt = $this->notify(new \cli\progress\Bar('Loading: ', $workers)); // Create 'ticker' instance
-
-            for ($i = 1; $i <= $workers; $i++) {
-                $nt->tick();
-                exec('php ' . ROOT_DIR . "/yii dev/task-processor-run $name > /dev/null & echo $!");
-                usleep(100000);
+        $tasks = SmartTaskProcessor::getTasks();
+        $nt    = $this->notify(new \cli\progress\Bar('Loading: ', count($tasks))); // Create 'ticker' instance
+        foreach ($tasks as $name => $task) {
+            if ($task->isLive()) {
+                continue;
             }
+            $nt->tick();
+            exec('php ' . ROOT_DIR . "/yii dev/task-processor-run $name > /dev/null & echo $!");
+            usleep(100000);
 
             $headers = ['PID', 'CPU', 'Mem. (Resident)', 'Mem. (Virtual)'];
         }

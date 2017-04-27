@@ -27,11 +27,11 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
     public $listnerConfig;
 
     /** @var  ListnerInterface|Listner */
-    protected static $listner;
-    /** @var  TaskProcessorInterface[] */
-    protected static $tasks = [];
+    public static $listner;
+    /** @var  AbstractTask[] */
+    public static $tasks = [];
     /** @var  StorageInterface|[] */
-    protected static $storages = [];
+    public static $storages = [];
 
 
     protected $defaultStorageClass = 'dostoevskiy\processor\src\storage\Storage';
@@ -39,6 +39,7 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
 
     public function listen()
     {
+        self::$listner->name          = 'SmartTaskProcessorListner';
         self::$listner->onWorkerStart = function () {
             /**
              * @var                  $name
@@ -50,11 +51,9 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
                 }
                 /** @var AbstractTask $task */
                 foreach (self::$tasks as $taskName => $task) {
-                    if ($task->storage == $name) {
-                        if (!$storage->configureContext($taskName, $task->storageOptions)) {
+                        if (!$task->storage->configureContext($taskName, $task->storageOptions)) {
                             throw new \Exception("Cant configure context of $taskName");
                         }
-                    }
                 }
             }
             foreach (Worker::$servicesToReload as $service) {
@@ -106,7 +105,7 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
                     return;
                 }
             } else {
-                $storageInstance = ArrayHelper::getValue(self::$storages, $taskInstance->storage);
+                $storageInstance = $taskInstance->storage;
                 if ($taskInstance->isTransactional()) {
                     $storageInstance->push($taskName, $taskData);
                     $connection->send("HTTP/1.1 200 OK\r\nServer: workerman\r\nContent-Length: $length\r\nConnection: keep-alive\r\nContent-Type: application/json\r\n\r\n" . $resp);
@@ -129,17 +128,42 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
         self::$listner->listen();
     }
 
+    /**
+     * @return AbstractTask[]
+     */
+    public static function getTasks()
+    {
+        return self::$tasks;
+    }
+
 
     public function run($taskName)
     {
-        if (!in_array($taskName, self::$tasks)) {
+        if (!array_key_exists($taskName, self::$tasks)) {
             throw new InvalidConfigException("invalid task $taskName");
         }
-        self::$storage->configureContext();
-        self::$storage->loop([self::$taskProcessor, 'process']);
+        self::$listner->name = $taskName;
+        /** @var AbstractTask $task */
+        $task                         = self::$tasks[$taskName];
+        self::$listner->threads = $task->threads;
+        self::$listner->onWorkerStart = function ($task) use ($task, $taskName) {
+            if (!$task->storage->configureConnection()) {
+                throw new \Exception("Cant connect to {$task->storage->name}");
+            }
+            /** @var AbstractTask $task */
+            if (!$task->storage->configureContext($taskName, $task->storageOptions)) {
+                throw new \Exception("Cant configure context for {$task->storage->name}");
+            }
+            foreach (Worker::$servicesToReload as $service) {
+                Yii::$app->$service->close();
+                Yii::$app->$service->open();
+            }
+            $task->storage->loop([$task, 'process'], $taskName);
+        };
+        self::$listner->listen();
     }
 
-    public function processManager()
+    public function process()
     {
         $processManager = new ProcessManager(['processor' => $this]);
         $processManager->manage();
@@ -155,6 +179,7 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
             if (!$storage instanceof StorageInterface) {
                 throw new InvalidConfigException('Storage must implements of StorageInterface');
             }
+            $storage->name         = $name;
             self::$storages[$name] = $storage;
         }
 
@@ -164,13 +189,17 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
             if (!$task instanceof AbstractTask) {
                 throw new InvalidConfigException('Task must be instance of AbstractTask');
             }
+
             self::$tasks[$name] = $task;
 
         }
 
         /* Create listner instace */
         $config        = ArrayHelper::merge(['class' => $this->defaultListnerClass], $this->listnerConfig);
-        self::$listner = Yii::createObject($config);
+        $requestParams = Yii::$app->request->params;
+        $run           = array_shift($requestParams);
+        $mode          = strpos($run, 'task-processor-run') === false;
+        self::$listner = Yii::createObject(ArrayHelper::merge($config, ['mode' => $mode ? Listner::MODE_LISTEN : Listner::MODE_PROCESS]));
         if (!self::$listner instanceof ListnerInterface) {
             throw new InvalidConfigException('Listner must implements ListnerInterface');
         }

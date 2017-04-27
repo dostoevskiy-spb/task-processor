@@ -8,26 +8,35 @@ use yii\base\Object;
 
 class Listner extends Object implements ListnerInterface
 {
+    const MODE_LISTEN  = 'listen';
+    const MODE_PROCESS = 'process';
     /** @var  Worker */
     protected static $worker;
     public           $type, $host, $port, $threads, $servicesToReload;
+    public           $mode = self::MODE_LISTEN;
+    public           $name;
     public           $onConnect, $onMessage, $onClose, $onWorkerStart;
 
     public function init()
     {
-        if (empty($this->type) || empty($this->host) || empty($this->port) || empty($this->threads)) {
+        if ($this->mode == self::MODE_LISTEN && (empty($this->type) || empty($this->host) || empty($this->port) || empty($this->threads))) {
             throw new InvalidConfigException('Invalid configuration. Specify type, host, port and count props');
         }
         if (empty(self::$worker)) {
-            $dsn          = $this->type . "://" . $this->host . ':' . $this->port;
-            self::$worker = new Worker($dsn);
-            self::$worker->setServicesToReload($this->servicesToReload);
-            self::$worker->count = $this->threads;
+            if ($this->mode == self::MODE_LISTEN) {
+                $dsn          = $this->type . "://" . $this->host . ':' . $this->port;
+                self::$worker = new Worker($dsn);
+            } else {
+                self::$worker = new Worker();
+            }
         }
     }
 
     public function listen()
     {
+        self::$worker->name = $this->name;
+        self::$worker->setServicesToReload($this->servicesToReload);
+        self::$worker->count = $this->threads;
         if (is_callable($this->onMessage)) {
             self::$worker->onMessage = $this->onMessage;
         }

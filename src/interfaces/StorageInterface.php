@@ -9,8 +9,8 @@ interface StorageInterface
     const STORAGE_TYPE_RABBITMQ = 'rabbit';
 
     public function push($taskName, $data);
-    public function pull($callback);
+    public function pull($callback, $taskName);
     public function configureConnection();
     public function configureContext($task, $config);
-    public function loop($callback);
+    public function loop($callback, $taskName);
 }

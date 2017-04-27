@@ -60,9 +60,10 @@ class Amqp extends Object implements StorageAdapterInterface, StorageInterface
         return self::$connection->isConnected();
     }
 
-    public function pull($callback)
+    public function pull($callback, $taskName)
     {
-        self::$channel->basic_consume('processor', '', false, false, false, false, function ($msg) use ($callback) {
+        $config = self::$contexts[$taskName];
+        self::$channel->basic_consume($config['queue'], '', false, false, false, false, function ($msg) use ($callback) {
             /** @var  AMQPMessage $msg */
             $class  = $callback[0];
             $method = $callback[1];
@@ -74,8 +75,9 @@ class Amqp extends Object implements StorageAdapterInterface, StorageInterface
 
     }
 
-    public function loop($callback)
+    public function loop($callback, $taskName)
     {
+        $this->pull($callback, $taskName);
         while (count(self::$channel->callbacks)) {
             self::$channel->wait();
         }

@@ -10,7 +10,7 @@ use yii\helpers\ArrayHelper;
 
 class Storage extends Object implements StorageInterface
 {
-    public $credentials, $storageOptions, $type;
+    public $credentials, $storageOptions, $type, $name;
     /** @var  StorageAdapterInterface|StorageInterface */
     protected $_adapter;
     protected $defaultType        = 'rabbit';
@@ -46,9 +46,9 @@ class Storage extends Object implements StorageInterface
         return $this->_adapter->push($taskName, $data) ? 'success' : 'fail';
     }
 
-    public function pull($callback)
+    public function pull($callback, $taskName)
     {
-        return $this->_adapter->pull($callback);
+        return $this->_adapter->pull($callback, $taskName);
     }
 
     public function configureContext($task, $config)
@@ -62,9 +62,9 @@ class Storage extends Object implements StorageInterface
     }
 
 
-    public function loop($callback)
+    public function loop($callback, $taskName)
     {
-        return $this->_adapter->loop($callback);
+        return $this->_adapter->loop($callback, $taskName);
     }
 
     protected function getAvailableStorageTypes()

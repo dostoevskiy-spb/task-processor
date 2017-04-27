@@ -3,6 +3,7 @@
 namespace dostoevskiy\processor\src\classes;
 
 use dostoevskiy\processor\src\models\Workerman;
+use Workerman\Lib\Timer;
 use Yii;
 use yii\db\Exception;
 
@@ -11,6 +12,70 @@ class Worker extends \Workerman\Worker
     public static $servicesToReload = [];
 
     public $name = 'StatsWorker';
+
+    /**
+     * Run all worker instances.
+     *
+     * @return void
+     */
+    public static function runAll()
+    {
+        self::checkSapiEnv();
+        self::init();
+        self::parseCommand();
+        self::daemonize();
+        self::initWorkers();
+        self::installSignal();
+        self::saveMasterPid();
+        self::forkWorkers();
+        self::displayUI();
+        self::resetStd();
+        self::monitorWorkers();
+    }
+
+    /**
+     * Init.
+     *
+     * @return void
+     */
+    protected static function init()
+    {
+        // Start file.
+        global $argv;
+
+        self::$_startFile = $argv[0];
+
+        // Pid file.
+        if (empty(self::$pidFile)) {
+            self::$pidFile = __DIR__ . "/../" . str_replace('/', '_', self::$_startFile) . ".pid";
+        }
+
+        // Log file.
+        if (empty(self::$logFile)) {
+            self::$logFile = __DIR__ . '/../workerman.log';
+        }
+        $log_file = (string)self::$logFile;
+        if (!is_file($log_file)) {
+            touch($log_file);
+            chmod($log_file, 0622);
+        }
+
+        // State.
+        self::$_status = self::STATUS_STARTING;
+
+        // For statistics.
+        self::$_globalStatistics['start_timestamp'] = time();
+        self::$_statisticsFile                      = sys_get_temp_dir() . '/workerman.status';
+
+        // Process title.
+        self::setProcessTitle('WorkerMan: master process  start_file=' . self::$_startFile);
+
+        // Init data for worker id.
+        self::initId();
+
+        // Timer init.
+        Timer::init();
+    }
     /**
      * Log.
      *
