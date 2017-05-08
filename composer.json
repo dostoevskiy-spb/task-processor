@@ -12,7 +12,9 @@
     ],
     "require": {
         "yiisoft/yii2": "*",
-        "workerman/workerman": "^3.4"
+        "workerman/workerman": "^3.4",
+        "gos/react-amqp": "^0.1.2",
+        "wp-cli/php-cli-tools": "^0.11.2"
     },
     "autoload": {
         "psr-4": {
