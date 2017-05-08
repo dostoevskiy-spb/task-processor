@@ -1,24 +1,28 @@
 {
-    "name": "dostoevskiy-spb/yii2-smart-task-processor",
-    "description": "Smart Task Processor with ability to live or deferred processing tasks through any of availabled transports: nats, rabbitmq, mongo, native socket",
-    "type": "yii2-extension",
-    "keywords": ["task"," task processor"],
-    "license": "Apache-2.0",
-    "authors": [
-        {
-            "name": "Pavel Lamzin",
-            "email": "dostoevskiy.spb@gmail.com"
-        }
-    ],
-    "require": {
-        "yiisoft/yii2": "*",
-        "workerman/workerman": "^3.4",
-        "gos/react-amqp": "^0.1.2",
-        "wp-cli/php-cli-tools": "^0.11.2"
-    },
-    "autoload": {
-        "psr-4": {
-            "dostoevskiy\\processor\\": ""
-        }
+  "name": "dostoevskiy-spb/yii2-smart-task-processor",
+  "description": "Smart Task Processor with ability to live or deferred processing tasks through any of availabled transports: nats, rabbitmq, mongo, native socket",
+  "type": "yii2-extension",
+  "version": "0.1.1",
+  "keywords": [
+    "task",
+    " task processor"
+  ],
+  "license": "Apache-2.0",
+  "authors": [
+    {
+      "name": "Pavel Lamzin",
+      "email": "dostoevskiy.spb@gmail.com"
     }
+  ],
+  "require": {
+    "yiisoft/yii2": "*",
+    "workerman/workerman": "^3.4",
+    "gos/react-amqp": "^0.1.2",
+    "wp-cli/php-cli-tools": "^0.11.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "dostoevskiy\\processor\\": ""
+    }
+  }
 }
