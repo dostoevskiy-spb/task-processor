@@ -1,7 +1,6 @@
 <?php
-
-use yii\db\Schema;
-use jamband\schemadump\Migration;
+namespace dostoevskiy\processor\src\migrations;
+use yii\db\Migration;
 
 class M170417144831CreateWorkermanTable extends Migration
 {

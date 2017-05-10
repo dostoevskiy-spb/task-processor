@@ -1,4 +1,5 @@
 <?php
+
 namespace dostoevskiy\processor\src\classes;
 
 use dostoevskiy\processor\SmartTaskProcessor;
@@ -8,52 +9,51 @@ use yii\base\InvalidConfigException;
 use yii\base\Object;
 use yii\helpers\ArrayHelper;
 
-abstract class AbstractTask extends Object implements TaskProcessorInterface
-{
-    public $threads          = 1;
-    public $type;
-    /** @var  string|Storage */
-    public $storage;
-    public $transactional;
-    public $storageOptions   = [];
+abstract class AbstractTask extends Object implements TaskProcessorInterface {
 
-    protected $defaultType = 'live';
+	public $threads = 1;
+	public $type;
+	/** @var  string|Storage */
+	public $storage;
+	public $transactional;
+	public $storageOptions = [];
 
-    const TYPE_LIVE     = 'live';
-    const TYPE_DEFERRED = 'deferred';
+	protected $defaultType = 'live';
 
-    final public function init()
-    {
-        if (empty($this->type)) {
-            $this->type = $this->defaultType;
-        }
-        if (!in_array($this->type, array_keys($this->getAvailableTypes()))) {
-            throw new InvalidConfigException('Only "live" or "deferred" types are available. Us it.');
-        }
-        $storage       = ArrayHelper::getValue(SmartTaskProcessor::$storages, $this->storage, false);
-        if(!$storage) {
-            throw new InvalidConfigException("Storage $this->storage missing in storage config");
-        }
-        $this->storage = $storage;
-    }
+	const TYPE_LIVE     = 'live';
+	const TYPE_DEFERRED = 'deferred';
 
-    /**
-     * @return array
-     */
-    public function getAvailableTypes()
-    {
-        return [
-            self::TYPE_DEFERRED => 'Отложенное выполнение',
-            self::TYPE_LIVE     => 'В реальном времени'
-        ];
-    }
+	final public function init() {
+		if (empty($this->type)) {
+			$this->type = $this->defaultType;
+		}
+		if (!in_array($this->type, array_keys($this->getAvailableTypes()))) {
+			throw new InvalidConfigException('Only "live" or "deferred" types are available. Us it.');
+		}
+		if (!$this->isLive()) {
+			$storage = ArrayHelper::getValue(SmartTaskProcessor::$storages, $this->storage, FALSE);
+			if (!$storage) {
+				throw new InvalidConfigException("Storage $this->storage missing in storage config");
+			}
+			$this->storage = $storage;
+		}
+	}
 
-    public function isLive()
-    {
-        return $this->type == self::TYPE_LIVE;
-    }
+	/**
+	 * @return array
+	 */
+	public function getAvailableTypes() {
+		return [
+			self::TYPE_DEFERRED => 'Отложенное выполнение',
+			self::TYPE_LIVE     => 'В реальном времени'
+		];
+	}
 
-    public function isTransactional() {
-        return (bool) $this->transactional;
-    }
+	public function isLive() {
+		return $this->type == self::TYPE_LIVE;
+	}
+
+	public function isTransactional() {
+		return (bool) $this->transactional;
+	}
 }
