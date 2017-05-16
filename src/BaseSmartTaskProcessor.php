@@ -58,8 +58,10 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface
 				}
 				/** @var AbstractTask $task */
 				foreach (self::$tasks as $taskName => $task) {
-					if (!$task->storage->configureContext($taskName, $task->storageOptions)) {
-						throw new \Exception("Cant configure context of $taskName");
+					if(!$task->isLive()) {
+						if (!$task->storage->configureContext($taskName, $task->storageOptions)) {
+							throw new \Exception("Cant configure context of $taskName");
+						}
 					}
 				}
 			}
