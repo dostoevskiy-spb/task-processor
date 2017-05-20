@@ -171,5 +171,7 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface, B
 			'class'     => 'dostoevskiy\processor\src\components\RestRequest',
 			'scriptUrl' => '/index.php'
 		]);
+		Yii::$app->set('restResponse',  ['class' => 'yii\web\Response']);
+
 	}
 }
