@@ -2,6 +2,7 @@
 
 namespace dostoevskiy\processor\src\protocols;
 
+use common\models\Bot;
 use dostoevskiy\processor\src\classes\AbstractTask;
 use dostoevskiy\processor\src\helpers\RestResponse;
 use dostoevskiy\processor\src\interfaces\RequestProtocolInterface;
@@ -14,12 +15,10 @@ class RestRequestProtocol implements RequestProtocolInterface {
 
 	public function getProcessRequestCallback($tasks) {
 		return function ($connection, $data) use ($tasks) {
-//			HttpCache::$header['Content-Type'] = 'application/json';
 			/** @var $connection \Workerman\Connection\ConnectionInterface */
+			Yii::$app->restRequest->setUserIP($connection->getRemoteIp());
 			$body     = explode("\r\n", $data);
 			$body     = json_decode(array_pop($body), true, 1024);
-			$route = ArrayHelper::getValue($body, 'route', false);
-			$taskData = ArrayHelper::getValue($body, 'data', false);
 			/** @var ConnectionInterface $connection */
 			/** @var AbstractTask $taskInstance */
 			$taskInstance = ArrayHelper::getValue($tasks, 'rest');

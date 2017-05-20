@@ -37,7 +37,9 @@ class DefaultRequestProtocol implements RequestProtocolInterface {
 			$length = strlen($resp);
 			if ($taskInstance->isLive()) {
 				if ($taskInstance->isTransactional()) {
-					$taskInstance->process($taskData);
+					$taskInstance->prepare($taskData);
+					$resp = json_encode($taskInstance->process($taskData));
+                    			$length = strlen($resp);
 					$connection->send("HTTP/1.1 200 OK\r\nServer: workerman\r\nContent-Length: $length\r\nContent-Type: application/json\r\n\r\n" . $resp);
 					$connection->close();
 
@@ -45,6 +47,7 @@ class DefaultRequestProtocol implements RequestProtocolInterface {
 				} else {
 					$connection->send("HTTP/1.1 200 OK\r\nServer: workerman\r\nContent-Length: $length\r\nContent-Type: application/json\r\n\r\n" . $resp);
 					$connection->close();
+					$taskInstance->prepare($taskData);
 					$taskInstance->process($data);
 
 					return;

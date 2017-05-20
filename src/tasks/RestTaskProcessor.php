@@ -2,32 +2,31 @@
 
 namespace dostoevskiy\processor\src\tasks;
 
+use common\models\Bot;
 use dostoevskiy\processor\src\classes\AbstractTask;
+use dostoevskiy\processor\src\helpers\RestResponse;
 use Yii;
 use yii\base\InvalidRouteException;
+use yii\helpers\ArrayHelper;
+use yii\web\HttpException;
 use yii\web\NotFoundHttpException;
 
 class RestTaskProcessor extends AbstractTask {
 
 	function process($data) {
 		try {
+			Yii::$app->restRequest->setUrl(ArrayHelper::getValue($data, 'route'));
+			Yii::$app->restRequest->setBodyParams(ArrayHelper::getValue($data, 'data'));
+			Yii::$app->restRequest->setToken(ArrayHelper::getValue($data, 'token'));
+			Bot::login(Yii::$app->restRequest->getToken());
+			list ($route, $params) = Yii::$app->restRequest->resolve();
 			try {
-				Yii::$app->restRequest->setUrl($data['route']);
-				Yii::$app->restRequest->setBodyParams($data['data']);
-				list ($route, $params) = Yii::$app->restRequest->resolve();
-			} catch (UrlNormalizerRedirectException $e) {
-				$url = $e->url;
-				if (is_array($url)) {
-					if (isset($url[0])) {
-						// ensure the route is absolute
-						$url[0] = '/' . ltrim($url[0], '/');
-					}
-					$url += Yii::$app->restRequest->getQueryParams();
-				}
-
-				return Yii::$app->restResponse->redirect(Url::to($url, $e->scheme), $e->statusCode);
+				$result = Yii::$app->runAction($route, $data['data']);
+			} catch (HttpException $e) {
+				return RestResponse::error($e->getMessage(), $e->statusCode);
+			} catch (\Exception $e) {
+				return RestResponse::error($e->getMessage(), $e->getCode() ?: 500);
 			}
-			$result = Yii::$app->runAction($route, $data['data']);
 
 			return $result;
 		} catch (InvalidRouteException $e) {

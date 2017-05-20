@@ -1,14 +1,29 @@
 <?php
 
 namespace dostoevskiy\processor\src\helpers;
+
+use yii\helpers\ArrayHelper;
+
 class RestResponse {
 
+	const STATUS_ERROR = 'error';
+	const STATUS_SUCCESS = 'success';
+
 	public $response = [];
+
 
 	public function __construct($data = []) {
 		if ($data) {
 			$this->response = $data;
 		}
+	}
+
+	public static function error($error, $code) {
+		return new self(['status' => self::STATUS_ERROR, 'error' => $error, 'code' => $code]);
+	}
+
+	public static function success($data = []) {
+		return new self(ArrayHelper::merge(['status' => self::STATUS_SUCCESS], $data));
 	}
 
 	public function asJson() {
