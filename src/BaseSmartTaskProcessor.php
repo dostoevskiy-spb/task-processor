@@ -103,8 +103,16 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface, B
 				throw new \Exception("Cant configure context for {$task->storage->name}");
 			}
 			foreach (Worker::$servicesToReload as $service) {
-				Yii::$app->$service->close();
-				Yii::$app->$service->open();
+			    $reflection = new \ReflectionClass(Yii::$app->$service);
+			    if($reflection->hasMethod('close')) {
+                    Yii::$app->$service->close();
+                }
+			    if($reflection->hasMethod('open')) {
+                    Yii::$app->$service->open();
+                }
+//                } else {
+//                    Yii::$app->$service->memcache->connect();
+//                }
 			}
 			$task->storage->loop([$task, 'process'], $taskName);
 		};
