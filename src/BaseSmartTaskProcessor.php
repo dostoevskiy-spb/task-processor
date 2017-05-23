@@ -67,8 +67,12 @@ class BaseSmartTaskProcessor extends Object implements GateProcessorInterface, B
 				}
 			}
 			foreach (Worker::$servicesToReload as $service) {
-				Yii::$app->$service->close();
-				Yii::$app->$service->open();
+                if (Yii::$app->$service->hasMethod('close')) {
+                    Yii::$app->$service->close();
+                }
+                if (Yii::$app->$service->hasMethod('open')) {
+                    Yii::$app->$service->open();
+                }
 			}
 		};
 		self::$listner->onMessage = self::$requestProtocol->getProcessRequestCallback(self::$tasks);
