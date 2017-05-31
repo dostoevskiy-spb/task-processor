@@ -107,12 +107,16 @@ class Worker extends \Workerman\Worker
             $workermanModel = new Workerman();
             $workermanModel->pid = self::$_masterPid;
             $workermanModel->name = $worker->name;
-            if (!$workermanModel->save()) {
-                foreach ($workermanModel->errors as $field) {
-                    foreach ($field as $message) {
-                        throw new Exception('can not save pid to ' . $message);
+            try {
+                if (!$workermanModel->save()) {
+                    foreach ($workermanModel->errors as $field) {
+                        foreach ($field as $message) {
+//                        throw new Exception('can not save pid to ' . $message);
+                        }
                     }
                 }
+            } catch(\Exception $e) {
+
             }
         }
     }

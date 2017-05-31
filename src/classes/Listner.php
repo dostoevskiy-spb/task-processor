@@ -17,6 +17,8 @@ class Listner extends Object implements ListnerInterface
     public           $name;
     public           $onConnect, $onMessage, $onClose, $onWorkerStart;
 
+    protected $isHAProxy = false;
+
     public function init()
     {
         if ($this->mode == self::MODE_LISTEN && (empty($this->type) || empty($this->host) || empty($this->port) || empty($this->threads))) {
@@ -24,8 +26,17 @@ class Listner extends Object implements ListnerInterface
         }
         if (empty(self::$worker)) {
             if ($this->mode == self::MODE_LISTEN) {
-                $dsn          = $this->type . "://" . $this->host . ':' . $this->port;
-                self::$worker = new Worker($dsn);
+                if (is_array($this->port)) {
+                    $this->isHAProxy = true;
+                    self::$worker    = [];
+                    foreach ($this->port as $port) {
+                        $dsn            = $this->type . "://" . $this->host . ':' . $port;
+                        self::$worker[] = new Worker($dsn);
+                    }
+                } else {
+                    $dsn          = $this->type . "://" . $this->host . ':' . $this->port;
+                    self::$worker = new Worker($dsn);
+                }
             } else {
                 self::$worker = new Worker();
             }
@@ -34,22 +45,35 @@ class Listner extends Object implements ListnerInterface
 
     public function listen()
     {
-        self::$worker->name = $this->name;
-        self::$worker->setServicesToReload($this->servicesToReload);
-        self::$worker->count = $this->threads;
+        if ($this->isHAProxy == true) {
+            foreach (self::$worker as $worker) {
+                $this->configureWorker($worker);
+            }
+        }
+        $this->configureWorker(self::$worker);
+        Worker::runAll();
+    }
+
+    /**
+     * @param $worker Worker
+     */
+    protected function configureWorker($worker)
+    {
+        $worker->name = $this->name;
+        $worker->setServicesToReload($this->servicesToReload);
+        $worker->count = $this->threads;
         if (is_callable($this->onMessage)) {
-            self::$worker->onMessage = $this->onMessage;
+            $worker->onMessage = $this->onMessage;
         }
         if (is_callable($this->onConnect)) {
-            self::$worker->onConnect = $this->onConnect;
+            $worker->onConnect = $this->onConnect;
         }
         if (is_callable($this->onClose)) {
-            self::$worker->onClose = $this->onClose;
+            $worker->onClose = $this->onClose;
         }
         if (is_callable($this->onWorkerStart)) {
-            self::$worker->onWorkerStart = $this->onWorkerStart;
+            $worker->onWorkerStart = $this->onWorkerStart;
         }
-        Worker::runAll();
     }
 
 
