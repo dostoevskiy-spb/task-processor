@@ -49,8 +49,9 @@ class Listner extends Object implements ListnerInterface
             foreach (self::$worker as $worker) {
                 $this->configureWorker($worker);
             }
+        } else {
+            $this->configureWorker(self::$worker);
         }
-        $this->configureWorker(self::$worker);
         Worker::runAll();
     }
 
