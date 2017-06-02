@@ -35,7 +35,7 @@ class HttpResponse {
             404 => 'Not Found'
         ];
 
-        return ArrayHelper::getValue($statuses, $this->code);
+        return $this->code . ' ' . ArrayHelper::getValue($statuses, $this->code);
     }
 
 	public function asRaw() {
